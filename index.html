@@ -44,20 +44,52 @@
   <h2>Autores:</h2>
     <p><strong>Univ:</strong> Hebert Suarez Burgos</p>
     <p><strong>Univ:</strong> Jhasmany Fernandez Ortega</p>
-  <br/>
-  <label for="ip">IP Base:</label>
-  <input type="text" id="ip" value="192.168.1.0" />
+  <br />
+<label for="ip">IP Base:</label>
+<input type="text" id="ip" value="192.168.1.0" />
 
-  <label for="mask">Máscara Base:</label>
-  <input type="text" id="mask" value="255.255.255.0" readonly />
+<label for="mask">Máscara Base:</label>
+<input type="text" id="mask" value="255.255.255.0" readonly />
 
-  <label for="hosts">Cantidad de Hosts por subred (separados por comas):</label>
-  <textarea id="hosts" rows="3">100,50,25</textarea>
+<label for="subnet-mask">Selecciona CIDR (Máscara):</label>
+<select id="subnet-mask">
+  <option value="8">/8 (255.0.0.0)</option>
+  <option value="9">/9 (255.128.0.0)</option>
+  <option value="10">/10 (255.192.0.0)</option>
+  <option value="11">/11 (255.224.0.0)</option>
+  <option value="12">/12 (255.240.0.0)</option>
+  <option value="13">/13 (255.248.0.0)</option>
+  <option value="14">/14 (255.252.0.0)</option>
+  <option value="15">/15 (255.254.0.0)</option>
+  <option value="16">/16 (255.255.0.0)</option>
+  <option value="17">/17 (255.255.128.0)</option>
+  <option value="18">/18 (255.255.192.0)</option>
+  <option value="19">/19 (255.255.224.0)</option>
+  <option value="20">/20 (255.255.240.0)</option>
+  <option value="21">/21 (255.255.248.0)</option>
+  <option value="22">/22 (255.255.252.0)</option>
+  <option value="23">/23 (255.255.254.0)</option>
+  <option value="24">/24 (255.255.255.0)</option>
+  <option value="25" selected>/25 (255.255.255.128)</option>
+  <option value="26">/26 (255.255.255.192)</option>
+  <option value="27">/27 (255.255.255.224)</option>
+  <option value="28">/28 (255.255.255.240)</option>
+  <option value="29">/29 (255.255.255.248)</option>
+  <option value="30">/30 (255.255.255.252)</option>
+</select>
 
-  <button onclick="calcular()">Calcular Subredes</button>
+<br />
 
-  <button onclick="exportarPDF()">Exportar a PDF</button>
-  <div id="resultado"></div>
+<label for="hosts">Cantidad de Hosts por subred (separados por comas):</label>
+<textarea id="hosts" rows="3">100,50,25</textarea>
+
+<br />
+
+<button onclick="calcular()">Calcular Subredes</button>
+<button onclick="exportarPDF()">Exportar a PDF</button>
+
+<div id="resultado"></div>
+
 
   <script>
     function ipToInt(ip) {
