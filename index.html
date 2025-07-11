@@ -1,0 +1,410 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Calculadora de Subneteo</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+    }
+    label, input, textarea, button {
+      display: block;
+      margin-bottom: 10px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 20px;
+    }
+    table, th, td {
+      border: 1px solid #ccc;
+    }
+    th, td {
+      padding: 8px;
+      text-align: center;
+    }
+    .info {
+      margin-bottom: 20px;
+      font-style: italic;
+    }
+    .alerta {
+      color: red;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Calculadora de Subneteo</h1>
+  <p class="info">
+    Esta calculadora permite trabajar con cualquier IP base (pública o privada),
+    útil para ejercicios académicos o configuraciones reales de red.
+  </p>
+  <h2>Autores:</h2>
+    <p><strong>Univ:</strong> Hebert Suarez Burgos</p>
+    <p><strong>Univ:</strong> Jhasmany Fernandez Ortega</p>
+  <br/>
+  <label for="ip">IP Base:</label>
+  <input type="text" id="ip" value="192.168.1.0" />
+
+  <label for="mask">Máscara Base:</label>
+  <input type="text" id="mask" value="255.255.255.0" readonly />
+
+  <label for="hosts">Cantidad de Hosts por subred (separados por comas):</label>
+  <textarea id="hosts" rows="3">100,50,25</textarea>
+
+  <button onclick="calcular()">Calcular Subredes</button>
+
+  <button onclick="exportarPDF()">Exportar a PDF</button>
+  <div id="resultado"></div>
+
+  <script>
+    function ipToInt(ip) {
+      return ip.split('.').reduce((acc, oct) => acc * 256 + parseInt(oct), 0);
+    }
+
+    function intToIp(int) {
+      return [24, 16, 8, 0].map(shift => (int >> shift) & 255).join('.');
+    }
+
+    function esPrivada(ip) {
+      const [a, b] = ip.split('.').map(Number);
+      return (
+        a === 10 ||
+        (a === 172 && b >= 16 && b <= 31) ||
+        (a === 192 && b === 168)
+      );
+    }
+
+    function obtenerClase(ip) {
+      const primerOcteto = parseInt(ip.split('.')[0]);
+      if (primerOcteto >= 0 && primerOcteto <= 127) return "A";
+      if (primerOcteto >= 128 && primerOcteto <= 191) return "B";
+      if (primerOcteto >= 192 && primerOcteto <= 223) return "C";
+      if (primerOcteto >= 224 && primerOcteto <= 239) return "D (Multicast)";
+      if (primerOcteto >= 240 && primerOcteto <= 255) return "E (Reservada)";
+      return "Desconocida";
+    }
+
+    function obtenerMascaraPorDefecto(clase) {
+      if (clase === "A") return "255.0.0.0";
+      if (clase === "B") return "255.255.0.0";
+      if (clase === "C") return "255.255.255.0";
+      return "N/A";
+    }
+
+    document.getElementById("ip").addEventListener("input", function () {
+      const ipBase = this.value.trim();
+      const clase = obtenerClase(ipBase);
+      const mascara = obtenerMascaraPorDefecto(clase);
+      document.getElementById("mask").value = mascara;
+    });
+
+    function calcular() {
+      const ipBase = document.getElementById("ip").value.trim();
+      const hosts = document.getElementById("hosts").value
+        .split(',')
+        .map(h => parseInt(h.trim()))
+        .filter(h => h > 0)
+        .sort((a, b) => b - a); // Ordena de mayor a menor
+
+      const resultado = document.getElementById("resultado");
+      let currentIP = ipToInt(ipBase);
+      let totalAsignadas = 0;
+
+      const tipoRed = esPrivada(ipBase) ? "privada" : "pública";
+      const clase = obtenerClase(ipBase);
+
+      let html = `
+        <p>La IP base <strong>${ipBase}</strong> es una dirección <strong>${tipoRed}</strong>.</p>
+        <p>La IP base pertenece a la <strong>Clase ${clase}</strong>.</p>
+        <table>
+          <tr class="explicacion"><td colspan="9" style="text-align: center; background-color: #f0f0f0;"><strong>TABLERO DE SUBNETEO</strong></td></tr>
+          <tr>
+            <th>#</th>
+            <th>Hosts válidos</th>
+            <th>Hosts desperdiciados o  distancia</th>
+            <th>Hosts requeridos</th>
+            <th>CIDR</th>
+            <th>Máscara</th>
+            <th>Dirección de Red</th>
+            <th>Broadcast</th>
+            <th>Rango de IPs</th>
+            <th>IPs asignadas</th>
+          </tr>`;
+
+      for (let index = 0; index < hosts.length; index++) {
+        const host = hosts[index];
+        const totalNeeded = host + 2;
+        const bits = Math.ceil(Math.log2(totalNeeded));
+        const cidr = 32 - bits;
+        const size = Math.pow(2, bits);
+
+        if (currentIP + size > 0xFFFFFFFF) {
+          html += `<tr><td colspan="8" class="alerta">❌ No se puede asignar subred para ${host} hosts: se excede el rango IPv4.</td></tr>`;
+html += `<p><strong>Total de IPs asignadas:</strong> ${totalAsignadas}</p>`;
+          break;
+        }
+
+        const netAddress = currentIP;
+        const broadcast = currentIP + size - 1;
+        const mask = 0xFFFFFFFF << (32 - cidr);
+        const maskIp = intToIp(mask >>> 0);
+        const firstHost = netAddress + 1;
+        const lastHost = broadcast - 1;
+
+        html += `
+          <tr>
+            <td>${index + 1}</td>
+            <td>${size - 2}</td>
+            <td>${size - 2 - host}</td>
+            <td>${host}</td>
+            <td>/${cidr}</td>
+            <td>${maskIp}</td>
+            <td>${intToIp(netAddress)}</td>
+            <td>${intToIp(broadcast)}</td>
+            <td>${intToIp(firstHost)} - ${intToIp(lastHost)}</td>
+            <td>${size}</td>
+          </tr>`;
+
+        currentIP = broadcast + 1;
+        totalAsignadas += size;
+      }
+
+      html += `</table>` +
+`
+<h2>Resumen de Hosts válidos por subred</h2>
+<table>
+  <tr>
+    <th>#</th>
+    <th>Hosts válidos (2^n - 2)</th>
+    <th>Detalle de cálculo</th>
+  </tr>` +
+hosts.map((host, index) => {
+  const totalNeeded = host + 2;
+  const bits = Math.ceil(Math.log2(totalNeeded));
+  const validHosts = Math.pow(2, bits) - 2;
+  return `
+    <tr>
+      <td>${index + 1}</td>
+      <td>${validHosts}</td>
+      <td>2^${bits} - 2 (donde (2^${bits}) - 2 ≥ ${host}) = ${validHosts}</td>
+    </tr>`;
+}).join("") + `
+</table>` +
+`
+<h2>Resumen de Hosts desperdiciados o distancia</h2>
+<table>
+  <tr>
+    <th>#</th>
+    <th>Hosts desperdiciados o distancia</th>
+    <th>Detalle de cálculo</th>
+  </tr>` +
+hosts.map((host, index) => {
+  const totalNeeded = host + 2;
+  const bits = Math.ceil(Math.log2(totalNeeded));
+  const validHosts = Math.pow(2, bits) - 2;
+  const waste = validHosts - host;
+  return `
+    <tr>
+      <td>${index + 1}</td>
+      <td>${waste}</td>
+      <td>${validHosts} - ${host} (donde Hosts válidos - Hosts requeridos) = ${waste}</td>
+    </tr>`;
+}).join("") + `
+</table>` +
+`
+<h2>Resumen de cálculo de CIDR</h2>
+<table>
+  <tr>
+    <th>#</th>
+    <th>CIDR</th>
+    <th>Detalle de cálculo</th>
+  </tr>` +
+hosts.map((host, index) => {
+  const totalNeeded = host + 2;
+  const bits = Math.ceil(Math.log2(totalNeeded));
+  const cidr = 32 - bits;
+  return `
+    <tr>
+      <td>${index + 1}</td>
+      <td>/${cidr}</td>
+      <td>32 - ${bits} (donde (2^${bits}) - 2 ≥ ${host}) = /${cidr}</td>
+    </tr>`;
+}).join("") + `
+</table>` +
+`
+<h2>Resumen del cálculo de la Máscara por subred</h2>
+<table>
+  <tr>
+    <th>#</th>
+    <th>Máscara</th>
+    <th>Detalle de cálculo</th>
+  </tr>` +
+hosts.map((host, index) => {
+  const totalNeeded = host + 2;
+  const bits = Math.ceil(Math.log2(totalNeeded));
+  const cidr = 32 - bits;
+  const mask = 0xFFFFFFFF << (32 - cidr);
+  const maskIp = [24, 16, 8, 0].map(shift => (mask >>> shift) & 255).join(".");
+  return `
+    <tr>
+      <td>${index + 1}</td>
+      <td>${maskIp}</td>
+      <td>(${[24, 16, 8, 0].map(shift => ((mask >>> shift) & 255).toString(2).padStart(8, "0")).join(".")} -> ${maskIp}) Máscara derivada del CIDR /${cidr}</td>
+    </tr>`;
+}).join("") + `
+</table>` +
+`
+
+      
+ `
+
+      
+html += `<h2>Resumen del cálculo de Dirección de Red</h2>
+<table>
+  <tr>
+    <th>#</th>
+    <th>Dirección de Red</th>
+    <th>Detalle de cálculo</th>
+  </tr>`; 
+
+let currentRedIP = ipToInt(ipBase);
+hosts.forEach((host, index) => {
+  const totalNeeded = host + 2;
+  const bits = Math.ceil(Math.log2(totalNeeded));
+  const size = Math.pow(2, bits);
+  const netAddress = currentRedIP;
+  const netAddressStr = intToIp(netAddress);
+  const detalle = index === 0
+    ? "IP base"
+    : "Broadcast anterior + 1 (donde " + intToIp(netAddress - size) + " + 1 = " + netAddressStr + ")";
+  html += `<tr>
+    <td>${index + 1}</td>
+    <td>${netAddressStr}</td>
+    <td>${detalle}</td>
+  </tr>`;
+  currentRedIP = netAddress + size;
+});
+html += `</table>`;
+
+      
+
+html += `<h2>Resumen del cálculo de Broadcast en binario</h2>
+<table>
+  <tr>
+    <th>#</th>
+    <th>Broadcast</th>
+    <th>Detalle de cálculo</th>
+  </tr>`; 
+
+let ipBaseBin = ipToInt(ipBase);
+currentIP = ipBaseBin;
+hosts.forEach((host, index) => {
+  const totalNeeded = host + 2;
+  const bits = Math.ceil(Math.log2(totalNeeded));
+  const size = Math.pow(2, bits);
+  const netAddress = currentIP;
+  const broadcast = netAddress + size - 1;
+  const netAddressStr = intToIp(netAddress);
+  const broadcastStr = intToIp(broadcast);
+  const binNet = [24, 16, 8, 0].map(s => (netAddress >> s & 255).toString(2).padStart(8, "0")).join(".");
+  const binOffset = (size - 1).toString(2).padStart(16, "0").replace(/(.{8})/, "$1.");
+  const binBroadcast = [24, 16, 8, 0].map(s => (broadcast >> s & 255).toString(2).padStart(8, "0")).join(".");
+  html += `<tr>
+    <td>${index + 1}</td>
+    <td>${broadcastStr}</td>
+    <td><pre>
+${binNet}  (${netAddressStr})
++                      
+                      ${binOffset}  (2^${bits} = ${size - 1})
+=                     
+${binBroadcast}  → ${broadcastStr}
+    </pre></td>
+  </tr>`;
+  currentIP = broadcast + 1;
+});
+html += `</table>`;
+
+      
+html += `<h2>Resumen del cálculo de Rango de IPs</h2>
+<table>
+  <tr>
+    <th>#</th>
+    <th>Rango de IPs</th>
+    <th>Detalle de cálculo</th>
+  </tr>`; 
+
+let ipBaseRango = ipToInt(ipBase);
+currentIP = ipBaseRango;
+hosts.forEach((host, index) => {
+  const totalNeeded = host + 2;
+  const bits = Math.ceil(Math.log2(totalNeeded));
+  const size = Math.pow(2, bits);
+  const netAddress = currentIP;
+  const broadcast = netAddress + size - 1;
+  const firstHost = netAddress + 1;
+  const lastHost = broadcast - 1;
+  const firstStr = intToIp(firstHost);
+  const lastStr = intToIp(lastHost);
+  const netStr = intToIp(netAddress);
+  const broadcastStr = intToIp(broadcast);
+  html += `<tr>
+    <td>${index + 1}</td>
+    <td>${firstStr} - ${lastStr}</td>
+    <td>
+      Primer Host = ${netStr} + 1 = ${firstStr}<br>
+      Último Host = ${broadcastStr} - 1 = ${lastStr}
+    </td>
+  </tr>`;
+  currentIP = broadcast + 1;
+});
+html += `</table>`;
+
+      
+html += `<h2>Resumen de IPs asignadas</h2>
+<table>
+  <tr>
+    <th>#</th>
+    <th>IPs asignadas</th>
+    <th>Detalle de cálculo</th>
+  </tr>`; 
+
+let currentIPs = ipToInt(ipBase);
+hosts.forEach((host, index) => {
+  const totalNeeded = host + 2;
+  const bits = Math.ceil(Math.log2(totalNeeded));
+  const size = Math.pow(2, bits);
+  html += `<tr>
+    <td>${index + 1}</td>
+    <td>${size}</td>
+    <td>2^${bits} = ${size} (para cubrir ${host} hosts)</td>
+  </tr>`;
+  currentIPs += size;
+});
+html += `</table>`;
+
+      resultado.innerHTML = html + `
+
+`;
+    }
+  </script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script>
+  function exportarPDF() {
+    const element = document.getElementById("resultado");
+    const opt = {
+      margin:       0.5,
+      filename:     'subneteo_resultado.pdf',
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2 },
+      jsPDF:        { unit: 'in', format: [20, 11], orientation: 'landscape' }
+    };
+    html2pdf().from(element).set(opt).save();
+  }
+</script>
+
+</body>
+</html>
