@@ -143,8 +143,7 @@
 
         if (currentIP + size > 0xFFFFFFFF) {
           html += `<tr><td colspan="8" class="alerta">❌ No se puede asignar subred para ${host} hosts: se excede el rango IPv4.</td></tr>`;
-html += `<p><strong>Total de IPs asignadas:</strong> ${totalAsignadas}</p>`;
-          break;
+break;
         }
 
         const netAddress = currentIP;
@@ -385,6 +384,7 @@ hosts.forEach((host, index) => {
 });
 html += `</table>`;
 
+      html += `<p><strong>Total de IPs asignadas:</strong> ${totalAsignadas}</p>`;
       resultado.innerHTML = html + `
 
 `;
